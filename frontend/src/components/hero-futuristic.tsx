@@ -1,245 +1,73 @@
-'use client';
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { BookOpen, Users, Sparkles } from 'lucide-react'
 
-import { Canvas, extend, useFrame, useThree } from '@react-three/fiber';
-import { useAspect, useTexture } from '@react-three/drei';
-import { useMemo, useRef, useState, useEffect } from 'react';
-import * as THREE from 'three/webgpu';
-import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
-import { Mesh } from 'three';
-
-import {
-  abs,
-  blendScreen,
-  float,
-  mod,
-  mx_cell_noise_float,
-  oneMinus,
-  smoothstep,
-  texture,
-  uniform,
-  uv,
-  vec2,
-  vec3,
-  pass,
-  mix,
-  add
-} from 'three/tsl';
-
-const TEXTUREMAP = { src: 'https://i.postimg.cc/XYwvXN8D/img-4.png' };
-const DEPTHMAP = { src: 'https://i.postimg.cc/2SHKQh2q/raw-4.webp' };
-
-extend(THREE as any);
-
-// Post Processing component
-const PostProcessing = ({
-  strength = 1,
-  threshold = 1,
-  fullScreenEffect = true,
-}: {
-  strength?: number;
-  threshold?: number;
-  fullScreenEffect?: boolean;
-}) => {
-  const { gl, scene, camera } = useThree();
-  const progressRef = useRef({ value: 0 });
-
-  const render = useMemo(() => {
-    const postProcessing = new THREE.PostProcessing(gl as any);
-    const scenePass = pass(scene, camera);
-    const scenePassColor = scenePass.getTextureNode('output');
-    const bloomPass = bloom(scenePassColor, strength, 0.5, threshold);
-
-    // Create the scanning effect uniform
-    const uScanProgress = uniform(0);
-    progressRef.current = uScanProgress;
-
-    // Create a purple overlay that follows the scan line
-    const scanPos = float(uScanProgress.value);
-    const uvY = uv().y;
-    const scanWidth = float(0.05);
-    const scanLine = smoothstep(0, scanWidth, abs(uvY.sub(scanPos)));
-    const purpleOverlay = vec3(0.557, 0.318, 1.0).mul(oneMinus(scanLine)).mul(0.4);
-
-    // Mix the original scene with the purple overlay
-    const withScanEffect = mix(
-      scenePassColor,
-      add(scenePassColor, purpleOverlay),
-      fullScreenEffect ? smoothstep(0.9, 1.0, oneMinus(scanLine)) : 1.0
-    );
-
-    // Add bloom effect after scan effect
-    const final = withScanEffect.add(bloomPass);
-
-    postProcessing.outputNode = final;
-
-    return postProcessing;
-  }, [camera, gl, scene, strength, threshold, fullScreenEffect]);
-
-  useFrame(({ clock }) => {
-    // Animate the scan line from top to bottom
-    progressRef.current.value = (Math.sin(clock.getElapsedTime() * 0.5) * 0.5 + 0.5);
-    render.renderAsync();
-  }, 1);
-
-  return null;
-};
-
-const WIDTH = 300;
-const HEIGHT = 300;
-
-const Scene = () => {
-  const [rawMap, depthMap] = useTexture([TEXTUREMAP.src, DEPTHMAP.src]);
-
-  const meshRef = useRef<Mesh>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    // Показываем изображение после загрузки текстур
-    if (rawMap && depthMap) {
-      setVisible(true);
-    }
-  }, [rawMap, depthMap]);
-
-  const { material, uniforms } = useMemo(() => {
-    const uPointer = uniform(new THREE.Vector2(0));
-    const uProgress = uniform(0);
-
-    const strength = 0.01;
-
-    const tDepthMap = texture(depthMap);
-
-    const tMap = texture(
-      rawMap,
-      uv().add(tDepthMap.r.mul(uPointer).mul(strength))
-    );
-
-    const aspect = float(WIDTH).div(HEIGHT);
-    const tUv = vec2(uv().x.mul(aspect), uv().y);
-
-    const tiling = vec2(120.0);
-    const tiledUv = mod(tUv.mul(tiling), 2.0).sub(1.0);
-
-    const brightness = mx_cell_noise_float(tUv.mul(tiling).div(2));
-
-    const dist = float(tiledUv.length());
-    const dot = float(smoothstep(0.5, 0.49, dist)).mul(brightness);
-
-    const depth = tDepthMap;
-
-    const flow = oneMinus(smoothstep(0, 0.02, abs(depth.sub(uProgress))));
-
-    const mask = dot.mul(flow).mul(vec3(5.57, 3.18, 10.0));
-
-    const final = blendScreen(tMap, mask);
-
-    const material = new THREE.MeshBasicNodeMaterial({
-      colorNode: final,
-      transparent: true,
-      opacity: 0,
-    });
-
-    return {
-      material,
-      uniforms: {
-        uPointer,
-        uProgress,
-      },
-    };
-  }, [rawMap, depthMap]);
-
-  const [w, h] = useAspect(WIDTH, HEIGHT);
-
-  useFrame(({ clock }) => {
-    uniforms.uProgress.value = (Math.sin(clock.getElapsedTime() * 0.5) * 0.5 + 0.5);
-    // Плавное появление
-    if (meshRef.current && 'material' in meshRef.current && meshRef.current.material) {
-      const mat = meshRef.current.material as any;
-      if ('opacity' in mat) {
-        mat.opacity = THREE.MathUtils.lerp(
-          mat.opacity,
-          visible ? 1 : 0,
-          0.07
-        );
-      }
-    }
-  });
-
-  useFrame(({ pointer }) => {
-    uniforms.uPointer.value = pointer;
-  });
-
-  const scaleFactor = 0.40;
+export default function Hero() {
   return (
-    <mesh ref={meshRef} scale={[w * scaleFactor, h * scaleFactor, 1]} material={material}>
-      <planeGeometry />
-    </mesh>
-  );
-};
+    <section className="relative py-20 px-4 bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-grid-slate-100 dark:bg-grid-slate-700/25 bg-[size:20px_20px] opacity-30" />
+      <div className="absolute top-10 right-10 w-72 h-72 bg-blue-200 dark:bg-blue-900 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 animate-pulse" />
+      <div className="absolute bottom-10 left-10 w-72 h-72 bg-purple-200 dark:bg-purple-900 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 animate-pulse delay-1000" />
 
-export const Hero = () => {
-  const titleWords = 'Read Write Connect'.split(' ');
-  const subtitle = 'Where stories come alive and communities thrive.';
-  const [visibleWords, setVisibleWords] = useState(0);
-  const [subtitleVisible, setSubtitleVisible] = useState(false);
-  const [delays, setDelays] = useState<number[]>([]);
-  const [subtitleDelay, setSubtitleDelay] = useState(0);
-
-  useEffect(() => {
-    // Только на клиенте: генерируем случайные задержки для глитча
-    setDelays(titleWords.map(() => Math.random() * 0.07));
-    setSubtitleDelay(Math.random() * 0.1);
-  }, [titleWords.length]);
-
-  useEffect(() => {
-    if (visibleWords < titleWords.length) {
-      const timeout = setTimeout(() => setVisibleWords(visibleWords + 1), 600);
-      return () => clearTimeout(timeout);
-    } else {
-      const timeout = setTimeout(() => setSubtitleVisible(true), 800);
-      return () => clearTimeout(timeout);
-    }
-  }, [visibleWords, titleWords.length]);
-
-  return (
-    <div className="h-svh">
-      <div className="h-svh uppercase items-center w-full absolute z-60 pointer-events-none px-10 flex justify-center flex-col">
-        <div className="text-3xl md:text-5xl xl:text-6xl 2xl:text-7xl font-extrabold">
-          <div className="flex space-x-2 lg:space-x-6 overflow-hidden text-white">
-            {titleWords.map((word, index) => (
-              <div
-                key={index}
-                className={index < visibleWords ? 'fade-in' : ''}
-                style={{ animationDelay: `${index * 0.13 + (delays[index] || 0)}s`, opacity: index < visibleWords ? undefined : 0 }}
-              >
-                {word}
-              </div>
-            ))}
-          </div>
+      <div className="relative container mx-auto text-center"></div>
+      <div className="max-w-4xl mx-auto">
+        {/* Badge */}
+        <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium mb-8 border border-blue-200 dark:border-blue-800">
+          <Sparkles className="w-4 h-4 mr-2" /> Where Stories Come to Life
         </div>
-        <div className="text-xs md:text-xl xl:text-2xl 2xl:text-3xl mt-2 overflow-hidden text-white font-bold">
-          <div
-            className={subtitleVisible ? 'fade-in-subtitle' : ''}
-            style={{ animationDelay: `${titleWords.length * 0.13 + 0.2 + subtitleDelay}s`, opacity: subtitleVisible ? undefined : 0 }}
-          >
-            {subtitle}
+
+        {/* Main headline */}
+        <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 leading-tight">
+          The Social Reading &{' '}
+          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Writing Platform
+          </span>
+        </h1>
+
+        {/* Subheadline */}
+        <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-8 font-medium">
+          Join thousands of readers and writers in a community where every story matters
+        </p>
+
+        {/* Description */}
+        <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed">
+          Experience immersive reading with AI audiobooks, engage in meaningful discussions, and support writers through our fair monetization system. Whether you're here to discover your next favorite book or share your own stories, Legato is where literary communities thrive.
+        </p>
+
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+          <Link href="/register">
+            <Button size="lg" className="text-lg px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+              <BookOpen className="w-5 h-5 mr-2" />
+              Start Reading Free
+            </Button>
+          </Link>
+          <Link href="/register?type=writer">
+            <Button size="lg" variant="outline" className="text-lg px-8 py-4 border-2 border-slate-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-400 transition-all duration-200">
+              <Users className="w-5 h-5 mr-2" />
+              Become a Writer
+            </Button>
+          </Link>
+        </div>
+
+        {/* Social proof */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-8 text-sm text-slate-500 dark:text-slate-400">
+          <div className="flex items-center">
+            <div className="flex -space-x-2 mr-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 border-2 border-white dark:border-slate-800" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 border-2 border-white dark:border-slate-800" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-600 border-2 border-white dark:border-slate-800" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 border-2 border-white dark:border-slate-800 flex items-center justify-center text-white text-xs font-bold">
+                +
+              </div>
+            </div>
+            <span>Join 5,000+ readers and writers</span>
           </div>
+          <div className="hidden sm:block w-px h-4 bg-slate-300 dark:bg-slate-600" />
+          <span>✨ No credit card required</span>
         </div>
       </div>
-
-
-      <Canvas
-        flat
-        gl={async (props) => {
-          const renderer = new THREE.WebGPURenderer(props as any);
-          await renderer.init();
-          return renderer;
-        }}
-      >
-        <PostProcessing fullScreenEffect={true} />
-        <Scene />
-      </Canvas>
-    </div>
-  );
-};
-
-export default Hero;
+    </section >
+  )
+}
